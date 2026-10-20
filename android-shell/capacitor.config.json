@@ -1,0 +1,12 @@
+{
+  "appId": "com.zzz11225566.weeklyschedv2",
+  "appName": "七日课表",
+  "webDir": "www",
+  "server": {
+    "url": "https://zzz11225566.github.io/weekly-schedule-v2/",
+    "cleartext": false
+  },
+  "android": {
+    "allowMixedContent": false
+  }
+}

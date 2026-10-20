@@ -1,0 +1,14 @@
+{
+  "name": "weekly-schedule-android-shell",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "cap:add": "cap add android",
+    "cap:sync": "cap sync android"
+  },
+  "dependencies": {
+    "@capacitor/android": "^7.0.0",
+    "@capacitor/cli": "^7.0.0",
+    "@capacitor/core": "^7.0.0"
+  }
+}
