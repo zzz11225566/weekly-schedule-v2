@@ -31,7 +31,11 @@ jobs:
 
       - name: Install Android platform and build tools
         run: |
-          echo y | sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          SDKMANAGER="${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager"
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="${ANDROID_HOME}/cmdline-tools/16.0/bin/sdkmanager"
+          fi
+          echo y | "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
 
       - name: Sync Capacitor
         run: npx cap sync android
