@@ -154,6 +154,7 @@ let state = loadState();
 let selectedDay = getCurrentDayKey();
 let editorContext = null;
 let toastTimer = null;
+let pinchState = null;
 
 function saveState() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
@@ -251,7 +252,7 @@ function itemSpan(item, defaultStart = "06:00", defaultDuration = 90) {
 
 function assignLanes(items) {
   const lanes = [];
-  return items.map((item, index) => {
+  return items.map((item, position) => {
     const span = itemSpan(item);
     const startMinutes = timeToMinutes(span.start);
     const endMinutes = timeToMinutes(span.end);
@@ -263,24 +264,39 @@ function assignLanes(items) {
       lanes.push([]);
     }
     lanes[lane].push({ start: startMinutes, end: endMinutes });
-    return { ...item, index, ...span, lane, startMinutes, endMinutes };
+    return {
+      ...item,
+      index: item.index ?? position,
+      ...span,
+      lane,
+      startMinutes,
+      endMinutes
+    };
   });
 }
 
 function applySettings() {
   document.documentElement.style.setProperty("--font-scale", String(state.settings.fontScale));
+  document.documentElement.style.setProperty("--ui-zoom", String(state.settings.viewScale));
   document.body.classList.toggle("dark", state.settings.theme === "dark");
   const themeMeta = document.querySelector('meta[name="theme-color"]');
   if (themeMeta) {
     themeMeta.setAttribute("content", state.settings.theme === "dark" ? "#242321" : "#f7f7f5");
   }
-  const viewport = document.querySelector('meta[name="viewport"]');
-  if (viewport) {
-    viewport.setAttribute(
-      "content",
-      `width=device-width, initial-scale=${state.settings.viewScale}, minimum-scale=0.2, maximum-scale=3, user-scalable=yes, viewport-fit=cover`
-    );
-  }
+}
+
+function clampViewScale(value) {
+  return Math.min(1.5, Math.max(0.2, Number(value) || 1));
+}
+
+function setViewScale(value, { persist = false } = {}) {
+  state.settings.viewScale = clampViewScale(value);
+  document.documentElement.style.setProperty("--ui-zoom", String(state.settings.viewScale));
+  const range = document.querySelector("#zoomRange");
+  const label = document.querySelector("#zoomValue");
+  if (range) range.value = String(state.settings.viewScale);
+  if (label) label.textContent = `${Math.round(state.settings.viewScale * 100)}%`;
+  if (persist) saveState();
 }
 
 function showToast(message) {
@@ -396,7 +412,6 @@ function renderGrid() {
     });
     weekdayLayouts[day.key] = assignLanes(blocks);
   });
-
   const weekendLayouts = {};
   weekendDays.forEach((day) => {
     const items = state.days[day.key].events.map((event, index) => ({ ...event, index }));
@@ -938,15 +953,56 @@ function bindEvents() {
   });
 
   document.querySelector("#zoomRange").addEventListener("input", (event) => {
-    state.settings.viewScale = Number(event.target.value);
-    document.querySelector("#zoomValue").textContent = `${Math.round(state.settings.viewScale * 100)}%`;
+    setViewScale(Number(event.target.value));
   });
 
   document.querySelector("#zoomRange").addEventListener("change", () => {
-    applySettings();
-    saveState();
+    setViewScale(state.settings.viewScale, { persist: true });
     showToast("缩放已调整");
   });
+
+  const scroller = document.querySelector("#weekScroller");
+  scroller.addEventListener(
+    "touchstart",
+    (event) => {
+      const touches = [...event.touches];
+      if (touches.length === 2) {
+        pinchState = {
+          startDistance: Math.hypot(
+            touches[0].clientX - touches[1].clientX,
+            touches[0].clientY - touches[1].clientY
+          ),
+          startScale: state.settings.viewScale
+        };
+      }
+    },
+    { passive: true }
+  );
+
+  scroller.addEventListener(
+    "touchmove",
+    (event) => {
+      if (!pinchState || event.touches.length !== 2) return;
+      event.preventDefault();
+      const touches = [...event.touches];
+      const distance = Math.hypot(
+        touches[0].clientX - touches[1].clientX,
+        touches[0].clientY - touches[1].clientY
+      );
+      if (pinchState.startDistance > 0) {
+        setViewScale(pinchState.startScale * (distance / pinchState.startDistance));
+      }
+    },
+    { passive: false }
+  );
+
+  const finishPinch = () => {
+    if (!pinchState) return;
+    pinchState = null;
+    setViewScale(state.settings.viewScale, { persist: true });
+  };
+  scroller.addEventListener("touchend", finishPinch, { passive: true });
+  scroller.addEventListener("touchcancel", finishPinch, { passive: true });
 }
 
 function registerServiceWorker() {
